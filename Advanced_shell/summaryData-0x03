@@ -1,0 +1,35 @@
+#!/bin/bash
+
+OUTPUT_FILE="report.csv"
+
+# Create CSV header
+echo "name,height,weight" > "$OUTPUT_FILE"
+
+# Loop through all JSON files
+for file in *.json; do
+    if [[ -f "$file" ]]; then
+        name=$(jq -r '.name' "$file")
+        height=$(jq -r '.height' "$file")
+        weight=$(jq -r '.weight' "$file")
+
+        echo "$name,$height,$weight" >> "$OUTPUT_FILE"
+    fi
+done
+
+echo "CSV report generated: $OUTPUT_FILE"
+echo ""
+
+# Calculate averages using awk
+echo "=== STATS ==="
+awk -F',' '
+NR>1 {
+    total_height += $2
+    total_weight += $3
+    count++
+}
+END {
+    if (count > 0) {
+        print "Average Height: " total_height/count
+        print "Average Weight: " total_weight/count
+    }
+}' "$OUTPUT_FILE"

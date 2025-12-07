@@ -1,35 +1,69 @@
 #!/bin/bash
+# Fetch Pokémon data in parallel using background jobs, jobs list, and kill
 
-POKEMONS=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
+POKEMONS=("Bulbasaur" "Ivysaur" "Venusaur" "Charmander" "Charmeleon")
 
 API_URL="https://pokeapi.co/api/v2/pokemon"
+LOG="errors.txt"
+PIDS=()    # Store process IDs here
 
-# Output directory
-OUT_DIR="pokemon_data"
-mkdir -p "$OUT_DIR"
+echo "" > "$LOG"
 
-# Function to fetch one Pokémon
-fetch_pokemon() {
+fetch_pokemon () {
     name=$1
-    output_file="$OUT_DIR/${name}.json"
+    outfile=$(echo "${name,,}.json")  # lowercase filename
 
     echo "Fetching $name..."
 
-    curl -s -o "$output_file" "$API_URL/$name"
+    # Make API request
+    curl -s "$API_URL/${name,,}" -o "$outfile"
 
-    if [ $? -ne 0 ]; then
-        echo "Failed to fetch $name" >> errors.txt
+    if [ $? -ne 0 ] || [ ! -s "$outfile" ]; then
+        echo "Failed to fetch $name" >> "$LOG"
     else
-        echo "$name fetched successfully."
+        echo "Saved $outfile"
     fi
 }
 
-# Start all fetches in parallel
-for p in "${POKEMONS[@]}"; do
-    fetch_pokemon "$p" &
+# ----------------------
+# Start background jobs
+# ----------------------
+for pokemon in "${POKEMONS[@]}"; do
+    fetch_pokemon "$pokemon" &
+    PID=$!
+    PIDS+=($PID)
+    echo "Started job for $pokemon with PID $PID"
 done
 
-# Wait for all background processes to finish
+echo ""
+echo "=== Active Jobs ==="
+jobs -l
+echo ""
+
+# -----------------------------------
+# Monitor and (example) kill a hung job
+# -----------------------------------
+# For demonstration: if any job runs >5 seconds, kill it
+TIMEOUT=5
+
+for pid in "${PIDS[@]}"; do
+    SECONDS=0
+    while kill -0 "$pid" 2>/dev/null; do
+        if [ $SECONDS -gt $TIMEOUT ]; then
+            echo "Process $pid exceeded time limit. Killing it."
+            kill "$pid"
+            break
+        fi
+        sleep 1
+    done
+done
+
+# -----------------------------------
+# Wait for clean completion
+# -----------------------------------
+echo ""
+echo "Waiting for all jobs to finish..."
 wait
 
-echo "All Pokémon fetched in parallel!"
+echo "All background processes completed."
+echo "Done."
